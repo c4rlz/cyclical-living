@@ -1,0 +1,26 @@
+[project]
+name = "cyclical-living"
+version = "0.1.0"
+description = "Email briefs before each new moon, full moon, solstice, equinox and cross-quarter day"
+authors = [
+    { name = "c4rlz", email = "carly.ewasiuk94@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "anthropic>=1.13.0",
+    "astronomy-engine>=2.1.19",
+    "pydantic>=2.14.0",
+    "tzdata>=2026.5",
+]
+
+[project.scripts]
+cyclical-living = "cyclical_living:main"
+
+[build-system]
+requires = ["uv_build>=0.13.0,<0.14.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
