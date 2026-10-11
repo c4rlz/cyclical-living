@@ -47,6 +47,7 @@ def test_prompt_carries_facts_season_and_recent_traditions():
     payload = client.calls[0]["messages"][0]["content"]
     assert '"nakshatra": "Ashwini"' in payload
     assert "chum salmon" in payload.lower()
+    assert "Comox Valley" in payload and "Puntledge" in payload
     assert '"Vedic"' in payload and '"Celtic"' in payload
     assert client.calls[0]["model"] == "claude-sonnet-5-5"
 

@@ -21,7 +21,7 @@ from pydantic import BaseModel, ValidationError
 
 from . import facts
 from .events import Event
-from .place import SEASONAL_NOTES
+from .place import HOME, NEARBY, SEASONAL_NOTES
 
 log = logging.getLogger(__name__)
 
@@ -86,9 +86,11 @@ Do not borrow, describe or invent Indigenous ceremonial practices, including \
 those of the Coast Salish and Kwakwaka'wakw peoples whose lands she lives on. \
 The `outside` suggestion should come from the land itself instead.
 
-Place: she lives on Vancouver Island, BC. The `outside` field should fit what \
-is actually happening there this time of year; a seasonal note is provided. \
-Suggest one specific, doable thing.
+Place: she lives in the Comox Valley on Vancouver Island, BC. The `outside` \
+field should fit what is actually happening there this time of year; a \
+seasonal note and a list of nearby places are provided. Prefer somewhere close \
+to home, or simply her own yard, street or sky. Only name places from the list \
+or ones you are certain exist in the valley. Suggest one specific, doable thing.
 
 Rituals take about 15 minutes and use things most homes have (a candle, a \
 bowl of water, paper, salt, a cup of tea, a window).
@@ -121,7 +123,9 @@ def build_user_message(event: Event, recent_traditions: list[str]) -> str:
         "display": {"title": facts.title(event), "when_line": facts.when_line(event),
                     "systems_line": facts.systems_line(event)},
         "month": event.local.strftime("%B"),
+        "home": HOME,
         "seasonal_note": SEASONAL_NOTES[event.local.month],
+        "nearby_places": NEARBY,
         "recently_used_traditions": recent_traditions,
     }
     return f"Write the brief for this event.\n\n{json.dumps(payload, indent=2)}"
