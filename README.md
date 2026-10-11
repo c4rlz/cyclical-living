@@ -8,6 +8,11 @@ Code computes the facts (dates, times, signs, nakshatras) with
 [astronomy-engine](https://github.com/cosinekitty/astronomy). Claude only
 writes the prose, and is given those facts as structured input.
 
+Claude is reached through [Claude Code](https://code.claude.com) in print
+mode, which runs on a Claude subscription. If `ANTHROPIC_API_KEY` is set, the
+API is used instead. If neither works, the brief still goes out with just the
+facts, and the run is marked as failed so you notice.
+
 ## When briefs arrive
 
 | Tier | Events | Lead time |
@@ -26,18 +31,21 @@ traditional fixed dates are included in the brief too.
 
 ## Setup
 
-Requires [uv](https://docs.astral.sh/uv/). It installs Python 3.12 for you.
+Requires [uv](https://docs.astral.sh/uv/) (it installs Python 3.12 for you)
+and, unless you use an API key, Claude Code signed in to your subscription.
 
 ```sh
 uv sync
 uv run pytest
 ```
 
-Environment variables:
+Environment variables (locally, put them in a `.env` file and run commands
+with `uv run --env-file .env ...`; `.env` is gitignored):
 
 | Variable | Needed for |
 |---|---|
-| `ANTHROPIC_API_KEY` | writing briefs (dry runs too) |
+| `CLAUDE_CODE_OAUTH_TOKEN` | writing briefs with your subscription in GitHub Actions (from `claude setup-token`); locally, your normal Claude Code login is used |
+| `ANTHROPIC_API_KEY` | optional: write briefs through the API instead |
 | `CLAUDE_MODEL` | optional, defaults to `claude-sonnet-5-5` |
 | `RESEND_API_KEY` | sending email |
 | `FROM_EMAIL` | sender, on a domain verified in Resend, e.g. `Moon <moon@yourdomain.com>` |
@@ -72,13 +80,18 @@ resend a brief, delete its file.
 `.github/workflows/daily-brief.yml` runs daily at 14:00 UTC (7 am Pacific) and
 commits new archive files back to the repo.
 
-1. Add repository secrets (Settings → Secrets and variables → Actions):
-   `ANTHROPIC_API_KEY`, `RESEND_API_KEY`, `TO_EMAIL`, `FROM_EMAIL`.
-2. Optionally add a repository variable `CLAUDE_MODEL`.
-3. To test, run the workflow by hand (Actions → Daily brief → Run workflow)
+1. Run `claude setup-token` and copy the token it prints.
+2. Add repository secrets (Settings → Secrets and variables → Actions):
+   `CLAUDE_CODE_OAUTH_TOKEN`, `RESEND_API_KEY`, `TO_EMAIL`, `FROM_EMAIL`.
+   Add `ANTHROPIC_API_KEY` only if you want the API instead.
+3. Optionally add a repository variable `CLAUDE_MODEL`.
+4. To test, run the workflow by hand (Actions → Daily brief → Run workflow)
    with a date. Dry run is on by default; the brief prints in the job log.
    With dry run off, it really sends and archives, so a later scheduled run
    won't send that event again.
+
+When the subscription token expires, runs go red and briefs arrive as facts
+only. Run `claude setup-token` again and update the secret.
 
 ## Future ideas
 

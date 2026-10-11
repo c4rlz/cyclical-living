@@ -28,7 +28,7 @@ def due_events(today: date) -> list[Event]:
 
 def run(today: date, dry_run: bool = False, deliver: Callable[[dict], None] | None = None,
         writer: Callable[[Event, list[str]], dict] = write_brief) -> int:
-    """Returns the number of events that failed."""
+    """Returns the number of events that failed or went out as facts only."""
     due = [e for e in due_events(today) if not archive.is_sent(e)]
     if not due:
         print(f"{today}: nothing due.")
@@ -46,6 +46,9 @@ def run(today: date, dry_run: bool = False, deliver: Callable[[dict], None] | No
             deliver(brief)
             path = archive.write(event, markdown, brief)
             print(f"{event.id}: sent, archived to {path}")
+            if brief.get("fallback"):
+                log.error("%s was sent as facts only: the writer failed", event.id)
+                failures += 1
         except Exception:
             log.exception("failed to send %s", event.id)
             failures += 1

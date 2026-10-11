@@ -76,3 +76,11 @@ def test_recent_traditions_newest_first(tmp_archive):
     for event, tradition in zip(events, ["Vedic", "Celtic", "Greek"]):
         archive.write(event, "body", {"tradition_used": tradition})
     assert archive.recent_traditions(2) == ["Greek", "Celtic"]
+
+
+def test_facts_only_send_is_archived_but_flagged(tmp_archive):
+    sent = []
+    facts_only = lambda event, recent: {**fake_writer(event, recent), "fallback": True}
+    assert runner.run(date(2026, 10, 23), deliver=sent.append, writer=facts_only) == 1
+    assert len(sent) == 1
+    assert (tmp_archive / "2026" / "2026-10-25-full-moon.md").exists()

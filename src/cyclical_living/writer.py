@@ -2,13 +2,19 @@
 
 Title, when-line and systems-line are built in code (facts.py); the model only
 writes the prose fields.
+
+Two ways to reach Claude: the API (if ANTHROPIC_API_KEY is set), or else the
+Claude Code CLI in print mode, which runs on a Claude subscription.
 """
 from __future__ import annotations
 
 import json
 import logging
 import os
-from typing import Optional
+import shutil
+import subprocess
+import tempfile
+from typing import Callable, Optional
 
 import anthropic
 from pydantic import BaseModel, ValidationError
@@ -121,18 +127,61 @@ def build_user_message(event: Event, recent_traditions: list[str]) -> str:
     return f"Write the brief for this event.\n\n{json.dumps(payload, indent=2)}"
 
 
-def _ask(client: anthropic.Anthropic, model: str, user_message: str) -> Prose:
-    response = client.messages.create(
-        model=model,
-        max_tokens=16000,
-        system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user_message}],
-        output_config={"format": {"type": "json_schema", "schema": PROSE_SCHEMA}},
-    )
-    if response.stop_reason != "end_turn":
-        raise ValueError(f"unexpected stop_reason {response.stop_reason!r}")
-    text = next(b.text for b in response.content if b.type == "text")
-    return Prose.model_validate_json(text)
+# (model, user_message) -> the model's JSON reply as text
+Ask = Callable[[str, str], str]
+
+
+def api_backend(client: Optional[anthropic.Anthropic] = None) -> Ask:
+    client = client or anthropic.Anthropic()
+
+    def ask(model: str, user_message: str) -> str:
+        response = client.messages.create(
+            model=model,
+            max_tokens=16000,
+            system=SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": user_message}],
+            output_config={"format": {"type": "json_schema", "schema": PROSE_SCHEMA}},
+        )
+        if response.stop_reason != "end_turn":
+            raise ValueError(f"unexpected stop_reason {response.stop_reason!r}")
+        return next(b.text for b in response.content if b.type == "text")
+
+    return ask
+
+
+def claude_code_backend(executable: str = "claude") -> Ask:
+    def ask(model: str, user_message: str) -> str:
+        proc = subprocess.run(
+            [executable, "-p", user_message,
+             "--system-prompt", SYSTEM_PROMPT,
+             "--json-schema", json.dumps(PROSE_SCHEMA),
+             "--tools", "",
+             "--model", model,
+             "--output-format", "json"],
+            capture_output=True, text=True, timeout=300,
+            # Run outside the repo so no project settings or files are picked up.
+            cwd=tempfile.gettempdir(),
+        )
+        if proc.returncode != 0:
+            raise RuntimeError(f"claude exited {proc.returncode}: {(proc.stderr or proc.stdout)[-500:]}")
+        result = json.loads(proc.stdout)
+        if result.get("is_error") or "structured_output" not in result:
+            raise ValueError(f"claude returned no structured output: {result.get('result')!r}")
+        return json.dumps(result["structured_output"])
+
+    return ask
+
+
+def default_backend() -> Ask:
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        return api_backend()
+    if shutil.which("claude"):
+        return claude_code_backend()
+
+    def unavailable(model: str, user_message: str) -> str:
+        raise RuntimeError("no ANTHROPIC_API_KEY set and no `claude` CLI on PATH")
+
+    return unavailable
 
 
 def fallback_brief(event: Event) -> dict:
@@ -147,15 +196,15 @@ def header(event: Event) -> dict:
             "systems_line": facts.systems_line(event)}
 
 
-def write_brief(event: Event, recent_traditions: list[str],
-                client: Optional[anthropic.Anthropic] = None) -> dict:
+def write_brief(event: Event, recent_traditions: list[str], ask: Optional[Ask] = None) -> dict:
+    """Two attempts, then a facts-only brief, so an event never goes unsent."""
     model = os.environ.get("CLAUDE_MODEL") or DEFAULT_MODEL
     user_message = build_user_message(event, recent_traditions)
-    client = client or anthropic.Anthropic()
+    ask = ask or default_backend()
     for attempt in (1, 2):
         try:
-            prose = _ask(client, model, user_message)
-        except (ValidationError, ValueError, StopIteration) as exc:
+            prose = Prose.model_validate_json(ask(model, user_message))
+        except Exception as exc:
             log.warning("writer attempt %d failed for %s: %s", attempt, event.id, exc)
             continue
         if event.tier != "new_moon" and not prose.outside:
