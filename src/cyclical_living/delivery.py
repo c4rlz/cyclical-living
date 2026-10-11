@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import urllib.error
 import urllib.request
 from typing import Protocol
 
@@ -39,10 +40,13 @@ class ResendEmail:
                 "User-Agent": "cyclical-living/0.1",
             },
         )
-        # urlopen raises HTTPError on any non-2xx response, so a failed send
-        # never reaches the archive.
-        with urllib.request.urlopen(request, timeout=30) as response:
-            response.read()
+        # Any non-2xx response raises, so a failed send never reaches the archive.
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                response.read()
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode(errors="replace")[:500]
+            raise RuntimeError(f"Resend returned {exc.code}: {detail}") from exc
 
 
 def from_env() -> Channel:

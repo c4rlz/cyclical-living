@@ -1,3 +1,4 @@
+import io
 import json
 import urllib.error
 
@@ -74,10 +75,11 @@ def test_resend_payload(monkeypatch):
 
 def test_resend_error_raises(monkeypatch):
     def failing(request, timeout):
-        raise urllib.error.HTTPError(request.full_url, 422, "Unprocessable", {}, None)
+        body = io.BytesIO(b'{"message": "The from domain is not verified"}')
+        raise urllib.error.HTTPError(request.full_url, 403, "Forbidden", {}, body)
 
     monkeypatch.setattr(delivery.urllib.request, "urlopen", failing)
-    with pytest.raises(urllib.error.HTTPError):
+    with pytest.raises(RuntimeError, match="403.*not verified"):
         delivery.ResendEmail("k", "f@example.com", "t@example.com").send(BRIEF)
 
 
