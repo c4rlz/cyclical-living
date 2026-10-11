@@ -149,7 +149,7 @@ def header(event: Event) -> dict:
 
 def write_brief(event: Event, recent_traditions: list[str],
                 client: Optional[anthropic.Anthropic] = None) -> dict:
-    model = os.environ.get("CLAUDE_MODEL", DEFAULT_MODEL)
+    model = os.environ.get("CLAUDE_MODEL") or DEFAULT_MODEL
     user_message = build_user_message(event, recent_traditions)
     client = client or anthropic.Anthropic()
     for attempt in (1, 2):

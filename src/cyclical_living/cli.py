@@ -3,6 +3,7 @@ import logging
 import sys
 from datetime import date, datetime, timedelta
 
+from . import delivery
 from .config import LEAD_DAYS, TZ
 from .events import compute_events
 from .runner import run
@@ -38,4 +39,5 @@ def main() -> None:
         print_events(args.start or datetime.now(TZ).date(), args.days)
     elif args.command == "run":
         today = args.date or datetime.now(TZ).date()
-        sys.exit(1 if run(today, dry_run=args.dry_run) else 0)
+        deliver = None if args.dry_run else delivery.from_env().send
+        sys.exit(1 if run(today, dry_run=args.dry_run, deliver=deliver) else 0)

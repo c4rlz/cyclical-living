@@ -1,0 +1,58 @@
+name: Daily brief
+
+on:
+  schedule:
+    # 14:00 UTC = 7:00 am in Vancouver. BC stays on UTC-7 year-round from
+    # November 2026, so this no longer drifts an hour in winter.
+    - cron: "0 14 * * *"
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Simulate this day (YYYY-MM-DD). Leave empty for today."
+        required: false
+      dry_run:
+        description: "Print the brief in the log instead of sending it"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-brief
+  cancel-in-progress: false
+
+jobs:
+  brief:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --locked
+
+      - name: Send due briefs
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          TO_EMAIL: ${{ secrets.TO_EMAIL }}
+          FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
+          CLAUDE_MODEL: ${{ vars.CLAUDE_MODEL }}
+          DATE: ${{ inputs.date }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          args=()
+          if [ -n "$DATE" ]; then args+=(--date "$DATE"); fi
+          if [ "$DRY_RUN" = "true" ]; then args+=(--dry-run); fi
+          uv run cyclical-living run "${args[@]}"
+
+      # Runs even if one brief failed, so the ones that did send are recorded.
+      - name: Commit archive
+        if: always()
+        run: |
+          [ -d archive ] || exit 0
+          git add archive
+          git diff --cached --quiet && exit 0
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Archive brief $(date -u +%Y-%m-%d)"
+          git push
